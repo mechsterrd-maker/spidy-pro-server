@@ -1,0 +1,12 @@
+{
+  "TRIAL-FREE": {
+    "deviceId": "TW96aWxsYS81",
+    "expiry": 1768922093776,
+    "type": "trial"
+  },
+  "ADMIN-999": {
+    "deviceId": null,
+    "expiry": null,
+    "type": "paid"
+  }
+}
