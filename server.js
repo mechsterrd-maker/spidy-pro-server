@@ -3,14 +3,13 @@ const cors = require('cors');
 const fs = require('fs');
 const app = express();
 
-app.use(cors());
+// 1. GLOBAL SECURITY CONFIG
+app.use(cors({ origin: '*' })); // Allows connections from any website or local file
 app.use(express.json());
 
-// For Render, the database file should be in a writable directory
-// but for simple testing, ./database.json works.
 const DB_FILE = './database.json';
 
-// --- DATABASE HELPER FUNCTIONS ---
+// --- DATABASE HELPERS ---
 function loadDB() {
     try {
         if (!fs.existsSync(DB_FILE)) {
@@ -22,73 +21,47 @@ function loadDB() {
             return initialData;
         }
         return JSON.parse(fs.readFileSync(DB_FILE));
-    } catch (e) {
-        console.error("DB Load Error:", e);
-        return {};
-    }
+    } catch (e) { return {}; }
 }
 
 function saveDB(data) {
-    try {
-        fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-    } catch (e) {
-        console.error("DB Save Error:", e);
-    }
+    try { fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2)); } catch (e) {}
 }
 
-// --- BETTING LOGIC CONFIG ---
-// We use whole numbers here so your units remain clean (1x, 2x, 5x, 11x, etc.)
+// --- SERVER HEALTH CHECK (Visible in browser) ---
+app.get('/', (req, res) => {
+    res.send("<body style='background:#000;color:#10b981;font-family:sans-serif;text-align:center;padding-top:100px;'><h1>✅ SPIDY GLOBAL SERVER ACTIVE</h1><p style='color:#fff'>Ready to process betting requests.</p></body>");
+});
+
+// --- BETTING ENGINE ---
 const MART_STEPS = [1, 2, 5, 11, 24, 50]; 
 
 app.post('/get-bet', (req, res) => {
     let db = loadDB();
     const { history, martIdx, key, deviceId, isLive } = req.body;
 
-    // 1. License Check
-    if (!db[key]) {
-        return res.status(403).json({ error: "INVALID_LICENSE_KEY" });
-    }
+    if (!db[key]) return res.status(403).json({ error: "INVALID_LICENSE" });
 
     let user = db[key];
-
-    // 2. HWID Device Locking
     if (!user.deviceId) {
         user.deviceId = deviceId;
         saveDB(db);
     } else if (user.deviceId !== deviceId) {
-        return res.status(403).json({ error: "KEY_LOCKED_TO_OTHER_DEVICE" });
+        return res.status(403).json({ error: "LOCKED_DEVICE" });
     }
 
-    // 3. Expiry Logic
-    const now = Date.now();
-    if (user.type === "trial") {
-        if (!user.expiry) {
-            user.expiry = now + (3 * 24 * 60 * 60 * 1000); // 3 Days
-            saveDB(db);
-        }
-        if (now > user.expiry) {
-            return res.status(403).json({ error: "TRIAL_EXPIRED" });
-        }
-    }
-
-    // 4. Prediction Logic
+    // Pattern Logic
     let prediction = "P";
     if (history && history.length >= 2) {
         prediction = (history[0] === history[1]) ? history[0] : (history[0] === 'P' ? 'B' : 'P');
     }
 
-    // 5. Response
-    // Math.round ensures that even if you change steps to decimals, the UI gets a whole number
     res.json({
         side: prediction,
-        amount: isLive ? Math.round(MART_STEPS[martIdx] || 1) : 0,
+        amount: isLive ? (MART_STEPS[martIdx] || 1) : 0,
         phase: (!history || history.length < 6) ? "ANALYZING" : (isLive ? "LIVE" : "VIRTUAL_WAIT")
     });
 });
 
-// --- CLOUD DEPLOYMENT PORT ---
-// This allows Render/Heroku to tell the app which port to use
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ SPIDY V1 PRO: Online on Port ${PORT}`);
-});
+app.listen(PORT, '0.0.0.0', () => console.log(`Server Active on Port ${PORT}`));
