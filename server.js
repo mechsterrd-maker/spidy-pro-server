@@ -4,7 +4,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// YOUR EXACT RECOVERY STEPS - UNTOUCHED
+// YOUR EXACT RECOVERY STEPS
 const MART = [1, 2.2, 4.8, 10.5, 23, 51]; 
 const PARO = [1, 2, 4];
 
@@ -12,58 +12,55 @@ app.post('/get-prediction', (req, res) => {
     const { history, martIdx, paroIdx, isLive } = req.body;
 
     let prediction = "P";
-    let logicName = "ANALYSIS";
-    let isConfident = true; // NEW: Confidence trigger for Ghost Mode
+    let logicName = "WAITING";
+    let isConfident = false; // Default to false: Evidence required
 
     if (history && history.length >= 4) {
         const h = history;
         
-        // 1. PATTERN: STREAK (P-P-P-P)
+        // 1. EVIDENCE: STREAK (Confirmed after 3 of a kind)
+        // Table showed P-P-P. Evidence says it's a streak. Predict P.
         if (h[0] === h[1] && h[1] === h[2]) {
             prediction = h[0];
-            logicName = "STREAK-MAX";
+            logicName = "CONFIRMED-STREAK";
+            isConfident = true;
         }
-        // 2. PATTERN: DOUBLETS (P-P-B-B) -> FIXES THE PPBB FAILURE
-        // If last 3 are P-P-B, predict B to catch the second half of the pair
-        else if (h[0] !== h[1] && h[1] === h[2]) {
-            prediction = h[0]; 
-            logicName = "DOUBLE-PAIR";
-        }
-        // 3. PATTERN: PURE CHOP (P-B-P-B)
-        else if (h[0] !== h[1] && h[1] !== h[2] && h[2] !== h[3]) {
+        // 2. EVIDENCE: DOUBLETS (Confirmed after PPBB)
+        // Table showed P-P-B-B. Evidence says it's 2-2. Predict next P.
+        else if (h[0] === h[1] && h[1] !== h[2] && h[2] === h[3]) {
             prediction = (h[0] === 'P') ? 'B' : 'P';
-            logicName = "PURE-CHOP";
+            logicName = "CONFIRMED-DOUBLE";
+            isConfident = true;
         }
-        // 4. PATTERN: THE JUMP (B-P-P-B) -> Detects end of a pair
-        else if (h[0] !== h[1] && h[1] === h[2] && h[2] !== h[3]) {
+        // 3. EVIDENCE: PURE CHOP (Confirmed after P-B-P)
+        // Table showed P-B-P. Evidence says it's 1-1. Predict next B.
+        else if (h[0] !== h[1] && h[1] !== h[2]) {
             prediction = (h[0] === 'P') ? 'B' : 'P';
-            logicName = "JUMP-AWAY";
+            logicName = "CONFIRMED-CHOP";
+            isConfident = true;
         }
-        // 5. CHAOS PROTECTION (Trigger Ghost Mode)
+        // 4. EVIDENCE: 2-1-2 (Confirmed after P-P-B-P)
+        else if (h[0] !== h[1] && h[1] !== h[2] && h[2] === h[3]) {
+            prediction = h[0];
+            logicName = "CONFIRMED-2-1";
+            isConfident = true;
+        }
+        // NO EVIDENCE: Enter Ghost Mode
         else {
             prediction = h[0]; 
-            logicName = "CHAOS-DETECTED";
-            isConfident = false; // Signals UI to hide bet
-        }
-    } else if (history && history.length >= 2) {
-        // Fallback for short history
-        if (history[0] !== history[1]) {
-            prediction = (history[0] === 'P') ? 'B' : 'P';
-            logicName = "CHOP-INIT";
-        } else {
-            prediction = history[0];
-            logicName = "STREAK-INIT";
+            logicName = "GHOST-CONFIRMING";
+            isConfident = false;
         }
     }
 
-    // --- KEEPING ALL YOUR EXACT PHASE LOGIC ---
+    // PHASE LOGIC
     let phase = "ANALYZING";
     if (history.length >= 6) {
-        // If logic is UNCERTAIN, we stay in VIRTUAL/GHOST even if isLive is true
+        // If we are Live but no pattern is confirmed, we go to GHOST_WAIT (resuming Martingale later)
         phase = (isLive && isConfident) ? "LIVE" : "GHOST_WAIT";
     }
 
-    // --- KEEPING ALL YOUR EXACT MULTIPLIER LOGIC ---
+    // MULTIPLIER LOGIC (Resumes Martingale step when Confident returns)
     let multiplier = 0;
     if (phase === "LIVE") {
         multiplier = (martIdx > 0) ? MART[martIdx] : PARO[paroIdx];
@@ -74,9 +71,9 @@ app.post('/get-prediction', (req, res) => {
         amount: multiplier,
         phase: phase,
         logic: logicName,
-        isConfident: isConfident // Send confidence to UI
+        isConfident: isConfident
     });
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`spidy-pro-server: V16 Advanced Engine Active`));
+app.listen(PORT, '0.0.0.0', () => console.log(`spidy-pro-server: Evidence-Based Active`));
