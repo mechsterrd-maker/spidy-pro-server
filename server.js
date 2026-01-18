@@ -3,10 +3,10 @@ const cors = require('cors');
 const fs = require('fs');
 const app = express();
 
-// 1. GLOBAL SECURITY CONFIG
-app.use(cors({ origin: '*' })); // Allows connections from any website or local file
+// Global Security & Cloud Port
+app.use(cors({ origin: '*' }));
 app.use(express.json());
-
+const PORT = process.env.PORT || 10000;
 const DB_FILE = './database.json';
 
 // --- DATABASE HELPERS ---
@@ -28,12 +28,12 @@ function saveDB(data) {
     try { fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2)); } catch (e) {}
 }
 
-// --- SERVER HEALTH CHECK (Visible in browser) ---
+// --- CLOUD HEALTH CHECK ---
 app.get('/', (req, res) => {
-    res.send("<body style='background:#000;color:#10b981;font-family:sans-serif;text-align:center;padding-top:100px;'><h1>✅ SPIDY GLOBAL SERVER ACTIVE</h1><p style='color:#fff'>Ready to process betting requests.</p></body>");
+    res.send("<body style='background:#000;color:#10b981;font-family:sans-serif;text-align:center;padding-top:100px;'><h1>✅ SPIDY GLOBAL SERVER ACTIVE</h1><p style='color:#fff'>Your Pattern Logic is Restored & Live.</p></body>");
 });
 
-// --- BETTING ENGINE ---
+// --- RESTORED ORIGINAL LOGIC ---
 const MART_STEPS = [1, 2, 5, 11, 24, 50]; 
 
 app.post('/get-bet', (req, res) => {
@@ -41,8 +41,8 @@ app.post('/get-bet', (req, res) => {
     const { history, martIdx, key, deviceId, isLive } = req.body;
 
     if (!db[key]) return res.status(403).json({ error: "INVALID_LICENSE" });
-
     let user = db[key];
+
     if (!user.deviceId) {
         user.deviceId = deviceId;
         saveDB(db);
@@ -50,18 +50,18 @@ app.post('/get-bet', (req, res) => {
         return res.status(403).json({ error: "LOCKED_DEVICE" });
     }
 
-    // Pattern Logic
+    // --- YOUR PERFECT LOGIC RESTORED ---
     let prediction = "P";
     if (history && history.length >= 2) {
+        // Matches your original pattern exactly
         prediction = (history[0] === history[1]) ? history[0] : (history[0] === 'P' ? 'B' : 'P');
     }
 
     res.json({
         side: prediction,
-        amount: isLive ? (MART_STEPS[martIdx] || 1) : 0,
+        amount: isLive ? Math.round(MART_STEPS[martIdx] || 1) : 0,
         phase: (!history || history.length < 6) ? "ANALYZING" : (isLive ? "LIVE" : "VIRTUAL_WAIT")
     });
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server Active on Port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`✅ Server Active on Port ${PORT}`));
